@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Business Forum Expert - Open AI Assistant</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x/dist/cdn.min.js"></script>
+
+    <!-- Marked.js for Markdown Parsing -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+		
+        /* Style links inside chat messages */
+        .chat-content a {
+            color: blue;
+            text-decoration: underline;
+        }
+
+        /* Prevent unsafe HTML rendering */
+        .chat-content {
+            word-break: break-word;
+        }
+
+        /* Ensure messages have a scrollbar */
+        #chatBox {
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: #ccc transparent;
+        }
+
+        #chatBox::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        #chatBox::-webkit-scrollbar-thumb {
+            background-color: #ccc;
+            border-radius: 4px;
+        }
+		
+		.thinking {
+			margin-top: 10px;
+			margin-bottom: 10px;
+		}
+
+        /* Add 10px spacing between messages */
+        .chat-message {
+            margin-bottom: 10px;
+        }
+		.chat-message p, .chat-message ol {		
+			margin-bottom: 1em;
+		}
+    </style>
+</head>
+<body class="bg-gray-100 flex justify-center items-center min-h-screen p-5">
+    <div class="bg-white shadow-lg rounded-lg w-full max-w-6xl h-[calc(100vh-40px)] flex flex-col" x-data="chatApp()" x-init="init()">
+        
+        <!-- Header -->
+        <h2 class="text-2xl font-bold text-center py-4 bg-gray-300 rounded-t-lg">Business Forum Expert - Open AI Assistant</h2>
+
+        <!-- Chat Box -->
+        <div class="flex-1 p-4 bg-gray-50 flex flex-col-reverse" id="chatBox">
+			<!-- Loading Indicator -->
+			<div x-show="isLoading"  class="flex justify-center items-center mt-2 space-x-2 thinking">
+				<div class="flex items-center px-4 pt-5 py-3 rounded-lg bg-blue-100 space-x-2">
+					<div class="flex items-center space-x-1">
+						<div class="h-3 w-3 bg-blue-500 rounded-full animate-bounce"></div>
+						<div class="h-3 w-3 bg-blue-500 rounded-full animate-bounce" style="animation-delay: 0.2s;"></div>
+						<div class="h-3 w-3 bg-blue-500 rounded-full animate-bounce" style="animation-delay: 0.4s;"></div>
+					</div>
+					
+				</div>
+			</div>
+
+            <template x-for="message in messages" :key="message.id">
+				<div class="chat-message flex" 
+					 :class="message.role === 'user' ? 'justify-end' : 'justify-start'">
+					<div class="px-4 py-2 rounded-lg my-1 chat-content text-left"
+						 :class="message.role === 'user' ? 'max-w-[80%] bg-blue-300 text-black ml-auto' : 'bg-gray-100 text-black mr-auto'"
+						 x-html="message.htmlContent">
+					</div>
+				</div>
+			</template>
+			
+
+        </div>
+
+        <!-- Input Box -->
+        <div class="p-4 flex bg-gray-200 rounded-b-lg">
+            <input type="text" id="messageInput" class="border flex-1 p-2 rounded-md"
+                   placeholder="Type your message..." x-model="newMessage"
+                   @keydown.enter="sendMessage()">
+            <button class="ml-2 bg-blue-500 text-white px-4 py-2 rounded-md" @click="sendMessage()">
+                Send
+            </button>
+        </div>
+
+    </div>
+
+    <script>
+        function chatApp() {
+            return {
+                newMessage: '',
+                messages: [],
+                thread_id: '',
+				run_id: '',
+				isLoading: false, 
+
+                // Fetch thread ID and chat history on page load
+                init() {
+                    let urlParams = new URLSearchParams(window.location.search);
+                    let queryThreadId = urlParams.get('thread_id');
+
+                    let fetchUrl = queryThreadId && queryThreadId !='undefined' ? `get_thread.php?thread_id=${queryThreadId}` : "get_thread.php";
+
+                    fetch(fetchUrl)
+                        .then(response => response.json())
+                        .then(data => {
+                            this.thread_id = data.thread_id;
+                            this.loadMessages();
+                        });
+                },
+				
+				pollRun(){
+					fetch(`get_run.php?thread_id=${this.thread_id}&run_id=${this.run_id}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.id){								
+								this.run_id=data.id;
+								if (data.status == 'queued' || data.status=='in_progress'){
+									//keep polling
+									setTimeout(() => this.pollRun(), 2000);
+								} else {
+									this.loadMessages();
+								}
+							}							 
+                        });
+				},
+
+                // Load previous messages
+                loadMessages() {
+                    fetch(`get_response.php?thread_id=${this.thread_id}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            this.messages = data.data.map((msg, index) => ({
+								id: index, // Unique ID for reactivity
+                                role: msg.role,
+                                content: msg.content[0].text.value,
+                                htmlContent: DOMPurify.sanitize(marked.parse(msg.content[0].text.value)).replace(/<a /g, '<a target="_blank" ')
+                            }));
+							this.scrollToBottom();
+							this.isLoading = false;
+                        });
+                },
+
+                // Send new message
+                sendMessage() {
+                    if (this.newMessage.trim() === '') return;
+
+                    // Add user message to UI
+                    this.messages.unshift({
+                        id: this.messages.length,
+                        role: 'user',
+                        content: this.newMessage,
+                        htmlContent: DOMPurify.sanitize(marked.parse(this.newMessage)) // Convert Markdown to HTML safely
+                    });
+
+
+                    let userInput = this.newMessage;
+                    this.newMessage = '';
+					this.isLoading = true;
+                    fetch(`send_message.php?thread_id=${this.thread_id}`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                        body: "message=" + encodeURIComponent(userInput)
+                    })
+                    .then(response => response.json())
+					.then(data => {
+						if (data.id){
+							this.run_id = data.id;
+							setTimeout(() => this.pollRun(), 2000);
+							}
+					});
+                },
+
+                // Scroll to bottom of chat box
+                scrollToBottom() {
+                    this.$nextTick(() => {
+                        let chatBox = document.getElementById('chatBox');
+                        chatBox.scrollTop = chatBox.scrollHeight;
+                    });
+                }
+				
+            }
+        }
+    </script>
+    <!-- DOMPurify for Secure Markdown Rendering -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/2.3.10/purify.min.js"></script>	
+</body>
+</html>
