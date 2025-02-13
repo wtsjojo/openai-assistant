@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once "init.php";
+header('Content-Type: application/json');
 
 $thread_id = $_GET['thread_id'] ?? $_SESSION['thread_id'] ?? $_COOKIE['thread_id'] ?? null;
 
@@ -12,6 +13,9 @@ if (!$thread_id) {
 
 $ch = curl_init("https://api.openai.com/v1/threads/$thread_id/messages");
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+curl_setopt($ch, CURLOPT_TIMEOUT, 30); 
+curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 15); 
+
 curl_setopt($ch, CURLOPT_HTTPHEADER, [
     "Authorization: Bearer " . $api_key,
 	"OpenAI-Beta: assistants=v2"

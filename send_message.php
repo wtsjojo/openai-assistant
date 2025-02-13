@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once "init.php";
+header('Content-Type: application/json');
 
 $thread_id = $_GET['thread_id'] ?? $_SESSION['thread_id'] ?? $_COOKIE['thread_id'] ?? null;
 $user_message = $_POST['message'] ?? "Hello!";
@@ -19,6 +20,8 @@ $data = [
 
 $ch = curl_init("https://api.openai.com/v1/threads/$thread_id/messages");
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+curl_setopt($ch, CURLOPT_TIMEOUT, 30); 
+curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 15); 
 curl_setopt($ch, CURLOPT_HTTPHEADER, [
     "Authorization: Bearer " . $api_key,
     "Content-Type: application/json",
@@ -37,12 +40,17 @@ if ($resp_json && isset($resp_json->id)){
 	
 	$ch = curl_init("https://api.openai.com/v1/threads/$thread_id/runs");
 	curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+	curl_setopt($ch, CURLOPT_TIMEOUT, 30); 
+	curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 15); 
 	curl_setopt($ch, CURLOPT_HTTPHEADER, [
 		"Authorization: Bearer " . $api_key,
 		"Content-Type: application/json",
 		"OpenAI-Beta: assistants=v2"	
 	]);
-	$data = ['assistant_id'=>$assistant_id];
+	$data = [
+		'assistant_id'=>$assistant_id,
+		//'instructions'=>$instructions
+	];
 	curl_setopt($ch, CURLOPT_POST, 1);
 	curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
 	$response = curl_exec($ch);

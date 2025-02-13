@@ -1,7 +1,7 @@
 <?php
 session_start();
 require_once "init.php";
-
+header('Content-Type: application/json');
 
 $query_thread_id = $_GET['thread_id'] ?? null; // Get from query string
 $stored_thread_id = $_SESSION['thread_id'] ?? $_COOKIE['thread_id'] ?? null;
@@ -17,6 +17,8 @@ if ($thread_id){
 	//validate threadid
 	$ch = curl_init("https://api.openai.com/v1/threads/$thread_id");
 	curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+	curl_setopt($ch, CURLOPT_TIMEOUT, 30); 
+	curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 15); 
 	curl_setopt($ch, CURLOPT_HTTPHEADER, [
 		"Authorization: Bearer " . $api_key,
 		"Content-Type: application/json",
@@ -37,6 +39,8 @@ if ($thread_id){
 if (!$thread_id) {
     $ch = curl_init("https://api.openai.com/v1/threads");
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+	curl_setopt($ch, CURLOPT_TIMEOUT, 30); 
+	curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 15); 
     curl_setopt($ch, CURLOPT_HTTPHEADER, [
         "Authorization: Bearer " . $api_key,
         "Content-Type: application/json",
